@@ -12,6 +12,8 @@ state_change_success_message = 'Текущее состояние успешно
 state_reset_message = 'Состояние успешно сброшено'
 current_state_message = 'Текущее состояние - "{current_state}", что удовлетворяет условию "один из {states}"'
 mode_error = 'Необходимо передвавать номер мода как аргумент к команде'
+settings = 'Настройки'
+metrics = 'Метрики'
 
 MESSAGES = {
     'start': start_message,
@@ -21,4 +23,6 @@ MESSAGES = {
     'state_reset': state_reset_message,
     'current_state': current_state_message,
     'mode_error': mode_error,
+    'settings': settings,
+    'metrics': metrics,
 }
