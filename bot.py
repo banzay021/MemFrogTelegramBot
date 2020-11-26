@@ -1,5 +1,7 @@
 import logging
 
+import asyncio
+
 from aiogram import Bot, types
 from aiogram.utils import executor
 from aiogram.utils.emoji import emojize
@@ -8,6 +10,7 @@ from aiogram.dispatcher import Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.types import ParseMode, InputMediaPhoto, InputMediaVideo, ChatActions, InputMediaAnimation
+from aiogram.dispatcher.filters import IsReplyFilter
 
 #from config import TOKEN #TOKEN_TEST as TOKEN
 #from config import CHAT_ID #CHAT_ID_TEST as CHAT_ID
@@ -46,6 +49,8 @@ dp = Dispatcher(bot, storage=MemoryStorage())
 
 dp.middleware.setup(LoggingMiddleware())
 
+queue = asyncio.Queue()
+
 
 def get_count(btn_text: str) -> int:
     result = re.findall(r'\d+', btn_text)
@@ -63,7 +68,7 @@ async def like_count(code: str, message: types.message):
                                         reply_markup=message.reply_markup)
 
 
-@dp.callback_query_handler(lambda c: c.data and c.data.startswith('quality'))
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith('quality'),state='*')
 async def process_callback_mem_quality(callback_query: types.CallbackQuery):
     code = callback_query.data[8:]
     if isinstance(code, str):
@@ -188,34 +193,93 @@ async def process_setstate_command(message: types.Message):
 #         await bot.send_message(message.from_user.id, 'Mem stolen successfully 🐸')
 
 
+@dp.callback_query_handler(admin_only, lambda c: c.data and c.data.startswith('edit'), state=FrogState.MEM_ADD_MODE)
+async def process_callback_mem_edit(callback_query: types.CallbackQuery):
+
+    if isinstance(callback_query.data, str):
+        if callback_query.data == 'edit_ok':
+            await bot.answer_callback_query(callback_query.id, text='Спиздить по тихому')
+            content_id = ''
+            if callback_query.message.content_type == 'photo':
+                await bot.send_photo(chat_id=CHAT_ID, photo=callback_query.message.photo[0].file_id,
+                                     caption=callback_query.message.md_text,
+                                     reply_markup=kb.inline_kb_meme_quality,
+                                     parse_mode=ParseMode.MARKDOWN)
+                content_id = callback_query.message.photo[0].file_id
+            if callback_query.message.content_type == 'video':
+                await bot.send_video(chat_id=CHAT_ID, video=callback_query.message.video.file_id,
+                                     caption=callback_query.message.md_text,
+                                     reply_markup=kb.inline_kb_meme_quality,
+                                     parse_mode=ParseMode.MARKDOWN)
+                content_id = callback_query.message.video.file_id
+            if callback_query.message.content_type == 'animation':
+                await bot.send_animation(chat_id=CHAT_ID, animation=callback_query.message.animation.file_id,
+                                         caption=callback_query.message.md_text,
+                                         reply_markup=kb.inline_kb_meme_quality,
+                                         parse_mode=ParseMode.MARKDOWN)
+                content_id = callback_query.message.animation.file_id
+
+            await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+            await bot.send_message(callback_query.from_user.id, f'Mem stolen successfully 🐸\n type: {callback_query.message.content_type} \n content_id: {content_id}')
+        if callback_query.data == 'edit_cancel':
+            await bot.answer_callback_query(callback_query.id, text='Не пиздить мем')
+            await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+        else:
+            await bot.answer_callback_query(callback_query.id)
+
+
+@dp.message_handler(IsReplyFilter,admin_only, state=FrogState.MEM_ADD_MODE)
+async def steal_animation(message: types.Message):
+    if isinstance(message.reply_to_message.content_type, str):
+        content_id = ''
+        message_text_new = message.text + '\n' + message.reply_to_message.md_text
+        if message.reply_to_message.content_type == 'photo':
+            await bot.send_photo(chat_id=CHAT_ID, photo=message.reply_to_message.photo[0].file_id,
+                                 caption=message_text_new,
+                                 reply_markup=kb.inline_kb_meme_quality,
+                                 parse_mode=ParseMode.MARKDOWN)
+            content_id = message.reply_to_message.photo[0].file_id
+        if message.reply_to_message.content_type == 'video':
+            await bot.send_video(chat_id=CHAT_ID, video=message.reply_to_message.video.file_id,
+                                 caption=message_text_new,
+                                 reply_markup=kb.inline_kb_meme_quality,
+                                 parse_mode=ParseMode.MARKDOWN)
+            content_id = message.reply_to_message.video.file_id
+        if message.reply_to_message.content_type == 'animation':
+            await bot.send_animation(chat_id=CHAT_ID, animation=message.reply_to_message.animation.file_id,
+                                     caption=message_text_new,
+                                     reply_markup=kb.inline_kb_meme_quality,
+                                     parse_mode=ParseMode.MARKDOWN)
+            content_id = message.reply_to_message.animation.file_id
+
+        await bot.delete_message(chat_id=message.reply_to_message.chat.id, message_id=message.reply_to_message.message_id)
+        await bot.send_message(message.from_user.id, f'Mem stolen successfully 🐸\n type: {message.reply_to_message.content_type} \n content_id: {content_id}')
+
+
 @dp.message_handler(admin_only, state=FrogState.MEM_ADD_MODE, content_types=['photo'])
 async def steal_photo(message: types.Message):
 
-    await bot.send_photo(chat_id=CHAT_ID, photo=message.photo[0].file_id,
+    await bot.send_photo(message.from_user.id, photo=message.photo[0].file_id,
                          caption=text(link(title="@frog", url=JOIN_LINK)),
-                         reply_markup=kb.inline_kb_meme_quality,
+                         reply_markup=kb.inline_kb_meme_edit,
                          parse_mode=ParseMode.MARKDOWN)
-    await bot.send_message(message.from_user.id, 'Mem stolen successfully 🐸')
-
 
 @dp.message_handler(admin_only, state=FrogState.MEM_ADD_MODE, content_types=['video'])
 async def steal_video(message: types.Message):
 
-    await bot.send_video(chat_id=CHAT_ID, video=message.video.file_id,
+    await bot.send_video(message.from_user.id, video=message.video.file_id,
                          caption=text(link(title="@frog", url=JOIN_LINK)),
-                         reply_markup=kb.inline_kb_meme_quality,
+                         reply_markup=kb.inline_kb_meme_edit,
                          parse_mode=ParseMode.MARKDOWN)
-    await bot.send_message(message.from_user.id, 'Video Mem stolen successfully 🐸')
 
 
 @dp.message_handler(admin_only, state=FrogState.MEM_ADD_MODE, content_types=['animation'])
 async def steal_animation(message: types.Message):
 
-    await bot.send_animation(chat_id=CHAT_ID, animation=message.animation.file_id,
+    await bot.send_animation(message.from_user.id, animation=message.animation.file_id,
                              caption=text(link(title="@frog", url=JOIN_LINK)),
-                             reply_markup=kb.inline_kb_meme_quality,
+                             reply_markup=kb.inline_kb_meme_edit,
                              parse_mode=ParseMode.MARKDOWN)
-    await bot.send_message(message.from_user.id, 'GIF Mem stolen successfully 🐸')
 
 
 @dp.message_handler(admin_only, state=FrogState.MEM_ADD_MODE,content_types=types.ContentTypes.ANY)

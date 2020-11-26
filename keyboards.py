@@ -70,6 +70,16 @@ inline_kb_full.insert(InlineKeyboardButton("Inline в этом же чате", s
 inline_kb_full.add(InlineKeyboardButton('Уроки aiogram', url='https://surik00.gitbooks.io/aiogram-lessons/content/'))
 
 ##########################
+#     Inline edit before send       #
+##########################
+
+inline_btn_send = InlineKeyboardButton(f'✅', callback_data='edit_ok')
+inline_btn_cancel = InlineKeyboardButton(f'❌', callback_data='edit_cancel')
+inline_kb_meme_edit = InlineKeyboardMarkup(row_width=2)
+inline_kb_meme_edit.row(inline_btn_send, inline_btn_cancel)
+
+
+##########################
 #     Inline likes       #
 ##########################
 
