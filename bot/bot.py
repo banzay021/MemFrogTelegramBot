@@ -11,18 +11,20 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.types import ParseMode, InputMediaPhoto, InputMediaVideo, ChatActions, InputMediaAnimation
 from aiogram.dispatcher.filters import IsReplyFilter
+from aiogram.contrib.fsm_storage.redis import RedisStorage2
 
-#from config import TOKEN #TOKEN_TEST as TOKEN
-#from config import CHAT_ID #CHAT_ID_TEST as CHAT_ID
+from config import TOKEN #TOKEN_TEST as TOKEN
+from config import CHAT_ID #CHAT_ID_TEST as CHAT_ID
 
 
-from config import TOKEN_TEST as TOKEN
-from config import CHAT_ID_TEST as CHAT_ID
+#from config import TOKEN_TEST as TOKEN
+#from config import CHAT_ID_TEST as CHAT_ID
 
 from config import ACL
 from config import CAT_BIG_EYES
 from config import JOIN_LINK
-
+from config import REDIS_PASS
+from config import REDIS_HOST
 
 from utils import FrogState
 from messages import MESSAGES
@@ -31,13 +33,13 @@ import keyboards as kb
 
 import re
 
-metrics_count_bad = 0
-metrics_conut_normal = 0
-metrics_count_fun = 0
-metrics_count_lol = 0
+import asyncio
+import aioredis
+
 
 def like_inc(var):
     var+=1
+
 
 logging.basicConfig(format=u'%(filename)+13s [ LINE:%(lineno)-4s] %(levelname)-8s [%(asctime)s] %(message)s',
                     level=logging.DEBUG)
@@ -45,17 +47,48 @@ logging.basicConfig(format=u'%(filename)+13s [ LINE:%(lineno)-4s] %(levelname)-8
 admin_only = lambda message: message.from_user.id in ACL
 
 bot = Bot(token=TOKEN)
-dp = Dispatcher(bot, storage=MemoryStorage())
+storage = RedisStorage2(REDIS_HOST, 6379, db=1, password=REDIS_PASS)
+dp = Dispatcher(bot, storage=storage)
 
 dp.middleware.setup(LoggingMiddleware())
 
-queue = asyncio.Queue()
+like_dict = {'bad': 0, 'normal': 1, 'fun': 2, 'lol': 3}
 
 
 def get_count(btn_text: str) -> int:
     result = re.findall(r'\d+', btn_text)
     if len(result) == 0: result.append('0')
     return int(result[0])
+
+
+async def like_setter(likes_list):
+    redis = await aioredis.create_redis_pool('redis://'+REDIS_HOST, password=REDIS_PASS, db=0)
+    for item in like_dict.keys():
+        await redis.set(item, str(likes_list[like_dict.get(item)]))
+        p = int(await redis.get(item))
+
+
+async def like_getter():
+    redis = await aioredis.create_redis_pool('redis://'+REDIS_HOST, password=REDIS_PASS, db=0)
+    likes_list = [0] * 4
+    for item in like_dict.keys():
+        if await redis.get(item):
+            likes_list[like_dict.get(item)] = int(await redis.get(item))
+        else:
+            return False
+    return likes_list
+
+
+async def like_to_redis(code: str):
+    if not await like_getter():
+        likes_list = [0] * 4
+        likes_list[like_dict.get(code)] += 1
+        await like_setter(likes_list)
+    else:
+        likes_list = await like_getter()
+        likes_list[like_dict.get(code)] += 1
+        await like_setter(likes_list)
+
 
 
 async def like_count(code: str, message: types.message):
@@ -73,24 +106,21 @@ async def process_callback_mem_quality(callback_query: types.CallbackQuery):
     code = callback_query.data[8:]
     if isinstance(code, str):
         code = str(code)
-    if code == 'bad':
-        await bot.answer_callback_query(callback_query.id, text='Нажата bad кнопка')
-        await like_count(code, callback_query.message)
-        like_inc(metrics_count_bad)
-    if code == 'normal':
-        await bot.answer_callback_query(callback_query.id, text='Нажата normal кнопка')
-        await like_count(code, callback_query.message)
-        like_inc(metrics_conut_normal)
-    if code == 'fun':
-        await bot.answer_callback_query(callback_query.id, text='Нажата fun кнопка')
-        await like_count(code, callback_query.message)
-        like_inc(metrics_count_fun)
-    if code == 'lol':
-        await bot.answer_callback_query(callback_query.id, text='Нажата lol кнопка')
-        await like_count(code, callback_query.message)
-        like_inc(metrics_count_lol)
-    else:
-        await bot.answer_callback_query(callback_query.id)
+        if code == 'bad':
+            await bot.answer_callback_query(callback_query.id, text='Нажата bad кнопка')
+            await like_count(code, callback_query.message)
+        if code == 'normal':
+            await bot.answer_callback_query(callback_query.id, text='Нажата normal кнопка')
+            await like_count(code, callback_query.message)
+        if code == 'fun':
+            await bot.answer_callback_query(callback_query.id, text='Нажата fun кнопка')
+            await like_count(code, callback_query.message)
+        if code == 'lol':
+            await bot.answer_callback_query(callback_query.id, text='Нажата lol кнопка')
+            await like_count(code, callback_query.message)
+        else:
+            await bot.answer_callback_query(callback_query.id)
+        await like_to_redis(code)
     # await bot.send_message(callback_query.from_user.id, f'Нажата инлайн кнопка! code={code}')
 
 
@@ -118,7 +148,12 @@ async def process_metrics_menu(message: types.Message):
 
 @dp.message_handler(admin_only, state=FrogState.METRIC_MODE, commands=['📊_like_stats'])
 async def process_command_metrics_like_stats(message: types.Message):
-    await bot.send_message(message.from_user.id, f'📊 Current metrics (From boot reboot)\n 😭: {metrics_count_bad} \n 😒: {metrics_conut_normal} \n 😍: {metrics_count_fun} \n 🤣: {metrics_count_lol}')
+
+    likes_list = [0] * 4
+    if await like_getter():
+        likes_list = await like_getter()
+
+    await bot.send_message(message.from_user.id, f'📊 Current metrics\n 😭: {likes_list[0]} \n 😒: {likes_list[1]} \n 😍: {likes_list[2]} \n 🤣: {likes_list[3]}')
 
 ##########################
 #      SETTINGS          #
@@ -298,5 +333,9 @@ async def shutdown(dispatcher: Dispatcher):
     await dispatcher.storage.wait_closed()
 
 
+
+
+
 if __name__ == '__main__':
+
     executor.start_polling(dp, on_shutdown=shutdown)

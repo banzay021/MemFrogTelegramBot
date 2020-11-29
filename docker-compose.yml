@@ -1,0 +1,26 @@
+version: "3.8"
+services:
+  bot:
+    build:
+      context: bot/.
+    image: mem_frog_bot:0.4
+  redis:
+    container_name: redis
+    image: redis:6.0-alpine3.12
+    command:
+      - 'redis-server'
+      - '--loglevel ${REDIS_LOGLEVEL:-warning}'
+      - '--databases 2'
+      - '--save 900 1'
+      - '--save 300 10'
+      - '--save 60 10000'
+      - '--maxmemory ${REDIS_MAXMEM:-50mb}'
+      - '--maxmemory-policy ${REDIS_POLICY:-noeviction}'
+      - '--requirepass REDIS_PASS'
+      #${REDIS_PASS}'
+    volumes:
+      - ./Redis/data:/data
+    #ports:
+    #  - "6379:6379"
+    environment:
+      - REDIS_REPLICATION_MODE=master
