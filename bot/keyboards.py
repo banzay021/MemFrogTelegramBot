@@ -29,8 +29,8 @@ kb_settings_menu = ReplyKeyboardMarkup().add(
 
 kb_settings_menu_frequency = InlineKeyboardMarkup(row_width=3)
 
-inline_button_frequency_1 = InlineKeyboardButton('5 min', callback_data='frequency 5')
-inline_button_frequency_2 = InlineKeyboardButton('10 min', callback_data='frequency 10')
+inline_button_frequency_1 = InlineKeyboardButton('2 min', callback_data='frequency 2')
+inline_button_frequency_2 = InlineKeyboardButton('5 min', callback_data='frequency 5')
 inline_button_frequency_3 = InlineKeyboardButton('15 min', callback_data='frequency 15')
 inline_button_frequency_4 = InlineKeyboardButton('20 min', callback_data='frequency 20')
 inline_button_frequency_5 = InlineKeyboardButton('30 min', callback_data='frequency 30')

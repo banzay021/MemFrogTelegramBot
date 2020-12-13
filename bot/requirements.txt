@@ -12,4 +12,5 @@ idna==2.10
 multidict==5.0.2
 pytz==2020.4
 typing-extensions==3.7.4.3
+uvloop==0.14.0
 yarl==1.6.3
