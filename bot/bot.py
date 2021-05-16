@@ -18,17 +18,17 @@ from MyFIlter import AclAdminFilter
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
 
 
-#from config import TOKEN #TOKEN_TEST as TOKEN
-#from config import CHAT_ID #CHAT_ID_TEST as CHAT_ID
+from config import TOKEN
+from config import CHAT_ID
+from config import REDIS_HOST
 
-
-from config import TOKEN_TEST as TOKEN
-from config import CHAT_ID_TEST as CHAT_ID
+#from config import TOKEN_TEST as TOKEN
+#from config import CHAT_ID_TEST as CHAT_ID
+#from config import REDIS_HOST_TEST as REDIS_HOST
 
 from config import CAT_BIG_EYES
 from config import JOIN_LINK
 from config import REDIS_PASS
-from config import REDIS_HOST
 
 from utils import FrogState
 from messages import MESSAGES

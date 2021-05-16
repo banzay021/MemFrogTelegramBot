@@ -1,5 +1,4 @@
 import asyncio
-#import uvloop
 
 from aiogram import types
 
