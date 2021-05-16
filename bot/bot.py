@@ -22,9 +22,9 @@ from config import TOKEN
 from config import CHAT_ID
 from config import REDIS_HOST
 
-#from config import TOKEN_TEST as TOKEN
-#from config import CHAT_ID_TEST as CHAT_ID
-#from config import REDIS_HOST_TEST as REDIS_HOST
+# from config import TOKEN_TEST as TOKEN
+# from config import CHAT_ID_TEST as CHAT_ID
+# from config import REDIS_HOST_TEST as REDIS_HOST
 
 from config import CAT_BIG_EYES
 from config import JOIN_LINK
@@ -37,6 +37,7 @@ import keyboards as kb
 
 import re
 import aioredis
+import json
 
 import FrogWorker as frog_worker
 
@@ -96,10 +97,12 @@ async def like_to_redis(redis: aioredis.commands.Redis, code: str):
         await like_setter(redis, likes_list)
 
 
-async def like_count(code: str, message: types.message):
+async def like_count(code: str, message: types.message,reaction_history=None):
     for buttom in message.reply_markup.inline_keyboard[0]:
+        if reaction_history:
+            if reaction_history == buttom.callback_data[8:]:
+                buttom.text = buttom.text[:1] + str(get_count(buttom.text) - 1)
         if code == buttom.callback_data[8:]:
-            b = str(get_count(buttom.text) + 1)
             buttom.text = buttom.text[:1] + str(get_count(buttom.text) + 1)
     await bot.edit_message_reply_markup(message_id=message.message_id,
                                         chat_id=message.chat.id,
@@ -109,11 +112,30 @@ async def like_count(code: str, message: types.message):
 @dp.callback_query_handler(Regexp('quality.*'), state='*')
 async def process_callback_mem_quality(callback_query: types.CallbackQuery):
     code = callback_query.data[8:]
+    redis = await aioredis.create_redis_pool('redis://' + REDIS_HOST, password=REDIS_PASS, db=0)
+    #
+
+    # to redis counting
+    user_id = callback_query.from_user.id
+    message_id = callback_query.message.message_id
+    redis_obj_name = f"{user_id}_{message_id}"
+
     if isinstance(code, str):
         code = str(code)
         if code in ['bad', 'normal', 'fun', 'lol']:
-            await bot.answer_callback_query(callback_query.id, text=f'Нажата {code} кнопка')
-            await like_count(code, callback_query.message)
+            await bot.answer_callback_query(callback_query.id, text=f'{code}')
+            reaction_history = await redis.get(redis_obj_name)
+
+            if reaction_history:
+                reaction_history = reaction_history.decode("utf-8")
+                if code != reaction_history:
+                    await like_count(code, callback_query.message, reaction_history)
+                    await redis.set(redis_obj_name, code)
+                elif code == reaction_history:
+                    pass
+            else:
+                await like_count(code, callback_query.message)
+                await redis.set(redis_obj_name, code)
         else:
             await bot.answer_callback_query(callback_query.id)
         await like_to_redis(dp.redis, code)

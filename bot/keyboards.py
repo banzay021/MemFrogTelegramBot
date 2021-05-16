@@ -83,10 +83,10 @@ inline_kb_meme_edit.row(inline_btn_send, inline_btn_cancel)
 #     Inline likes       #
 ##########################
 
-count_bad = ''
-conut_normal = ''
-count_fun = ''
-count_lol = ''
+count_bad = '0'
+conut_normal = '0'
+count_fun = '0'
+count_lol = '0'
 
 inline_btn_bad = InlineKeyboardButton(f'😭{count_bad}', callback_data='quality_bad')
 inline_btn_normal = InlineKeyboardButton(f'😒{conut_normal}', callback_data='quality_normal')

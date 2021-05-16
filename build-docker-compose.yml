@@ -1,6 +1,6 @@
 version: '3'
 services:
   cortex:
-    image: mem_frog_bot:0.6
+    image: mem_frog_bot:0.7
     build:
         context: bot/.

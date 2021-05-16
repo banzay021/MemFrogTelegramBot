@@ -3,7 +3,7 @@ services:
   bot:
     build:
       context: bot/.
-    image: mem_frog_bot:0.6
+    image: mem_frog_bot:0.7
     volumes:
       - ./bot/config.py:/app/config.py
   redis:
