@@ -15,3 +15,7 @@ async def add_mem_to_posting_queue(message):
 
 async def get_mem_to_posting_from_queue():
     return await queue.get()
+
+
+def mem_posted():
+    queue.task_done()

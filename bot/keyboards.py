@@ -34,7 +34,7 @@ inline_button_frequency_2 = InlineKeyboardButton('5 min', callback_data='frequen
 inline_button_frequency_3 = InlineKeyboardButton('15 min', callback_data='frequency 15')
 inline_button_frequency_4 = InlineKeyboardButton('20 min', callback_data='frequency 20')
 inline_button_frequency_5 = InlineKeyboardButton('30 min', callback_data='frequency 30')
-inline_button_frequency_6 = InlineKeyboardButton('50 min', callback_data='frequency 50')
+inline_button_frequency_6 = InlineKeyboardButton('0 min', callback_data='frequency 0')
 
 kb_settings_menu_frequency.add(inline_button_frequency_1, inline_button_frequency_2, inline_button_frequency_3)
 kb_settings_menu_frequency.add(inline_button_frequency_4, inline_button_frequency_5, inline_button_frequency_6)

@@ -13,6 +13,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.types import ParseMode, InputMediaPhoto, InputMediaVideo, ChatActions, InputMediaAnimation
 from aiogram.dispatcher.filters import IsReplyFilter, RegexpCommandsFilter, Regexp
+from aiogram.utils.exceptions import MessageToDeleteNotFound
 from MyFIlter import AclAdminFilter
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
 
@@ -39,15 +40,15 @@ import aioredis
 
 import FrogWorker as frog_worker
 
-def like_inc(var):
-    var+=1
-
-
-like_dict = {'bad': 0, 'normal': 1, 'fun': 2, 'lol': 3}
-
 
 logging.basicConfig(format=u'%(filename)+13s [ LINE:%(lineno)-4s] %(levelname)-8s [%(asctime)s] %(message)s',
                         level=logging.DEBUG)
+
+##############################
+#          BOT INIT          #
+##############################
+
+like_dict = {'bad': 0, 'normal': 1, 'fun': 2, 'lol': 3}
 
 bot = Bot(token=TOKEN)
 storage = RedisStorage2(REDIS_HOST, 6379, db=1, password=REDIS_PASS)
@@ -55,6 +56,7 @@ loop = frog_worker.loop
 
 dp = Dispatcher(bot, storage=storage, loop=loop)
 
+# for logging
 dp.middleware.setup(LoggingMiddleware())
 
 ##############################
@@ -283,7 +285,6 @@ async def steal_photo(message: types.Message):
 
 @dp.message_handler(AclAdminFilter, state=FrogState.MEM_ADD_MODE, content_types=['video'])
 async def steal_video(message: types.Message):
-
     await bot.send_video(message.from_user.id, video=message.video.file_id,
                          caption=text(link(title="@frog", url=JOIN_LINK)),
                          reply_markup=kb.inline_kb_meme_edit,
@@ -299,7 +300,7 @@ async def steal_animation(message: types.Message):
                              parse_mode=ParseMode.MARKDOWN)
 
 
-@dp.message_handler(AclAdminFilter, state=FrogState.MEM_ADD_MODE,content_types=types.ContentTypes.ANY)
+@dp.message_handler(AclAdminFilter, state=FrogState.MEM_ADD_MODE, content_types=types.ContentTypes.ANY)
 async def steal_content(message: types.Message):
     await bot.send_message(message.from_user.id, f"I do not know how to steal this yet 🐸 \n Please contact with toad BO$$ content_type: {message.content_type}")
 
@@ -339,61 +340,50 @@ async def shutdown_bot(dispatcher: Dispatcher):
 
 async def posting():
     while True:
+        content_id = ''
         redis = await aioredis.create_redis_pool('redis://' + REDIS_HOST, password=REDIS_PASS, db=0)
-        frequency = 5 * 60
+        # for first mem to post without sleep
+        frequency = 0
         if await redis.get('frequency'):
             frequency = int(await redis.get('frequency')) * 60
 
         message = await frog_worker.get_mem_to_posting_from_queue()
         await asyncio.sleep(frequency)
+
         if isinstance(message, types.Message):
-            content_id = ''
-            if message.reply_to_message.content_type == 'photo':
-                await bot.send_photo(chat_id=CHAT_ID, photo=message.reply_to_message.photo[0].file_id,
-                                     caption=message.text,
-                                     reply_markup=kb.inline_kb_meme_quality,
-                                     parse_mode=ParseMode.MARKDOWN)
-                content_id = message.reply_to_message.photo[0].file_id
-            if message.reply_to_message.content_type == 'video':
-                await bot.send_video(chat_id=CHAT_ID, video=message.reply_to_message.video.file_id,
-                                     caption=message.text,
-                                     reply_markup=kb.inline_kb_meme_quality,
-                                     parse_mode=ParseMode.MARKDOWN)
-                content_id = message.reply_to_message.video.file_id
-            if message.reply_to_message.content_type == 'animation':
-                await bot.send_animation(chat_id=CHAT_ID, animation=message.reply_to_message.animation.file_id,
-                                         caption=message.text,
-                                         reply_markup=kb.inline_kb_meme_quality,
-                                         parse_mode=ParseMode.MARKDOWN)
-                content_id = message.reply_to_message.animation.file_id
-
-            await bot.delete_message(chat_id=message.reply_to_message.chat.id, message_id=message.reply_to_message.message_id)
-            await bot.send_message(message.from_user.id, f'Mem stolen successfully 🐸\n type: {message.reply_to_message.content_type} \n content_id: {content_id}')
+            caption = message.text
+            message_path_to_obj = message.reply_to_message
         if isinstance(message, types.CallbackQuery):
-            content_id = ''
-            if message.message.content_type == 'photo':
-                await bot.send_photo(chat_id=CHAT_ID, photo=message.message.photo[0].file_id,
-                                     caption=message.message.md_text,
+            caption = message.message.md_text
+            message_path_to_obj = message.message
+        try:
+            await bot.delete_message(chat_id=message_path_to_obj.chat.id, message_id=message_path_to_obj.message_id)
+            if message_path_to_obj.content_type == 'photo':
+                await bot.send_photo(chat_id=CHAT_ID, photo=message_path_to_obj.photo[0].file_id,
+                                     caption=caption,
                                      reply_markup=kb.inline_kb_meme_quality,
                                      parse_mode=ParseMode.MARKDOWN)
-                content_id = message.message.photo[0].file_id
-            if message.message.content_type == 'video':
-                await bot.send_video(chat_id=CHAT_ID, video=message.message.video.file_id,
-                                     caption=message.message.md_text,
+                content_id = message_path_to_obj.photo[0].file_id
+            if message_path_to_obj.content_type == 'video':
+                await bot.send_video(chat_id=CHAT_ID, video=message_path_to_obj.video.file_id,
+                                     caption=caption,
                                      reply_markup=kb.inline_kb_meme_quality,
                                      parse_mode=ParseMode.MARKDOWN)
-                content_id = message.message.video.file_id
-            if message.message.content_type == 'animation':
-                await bot.send_animation(chat_id=CHAT_ID, animation=message.message.animation.file_id,
-                                         caption=message.message.md_text,
+                content_id = message_path_to_obj.video.file_id
+            if message_path_to_obj.content_type == 'animation':
+                await bot.send_animation(chat_id=CHAT_ID, animation=message_path_to_obj.animation.file_id,
+                                         caption=caption,
                                          reply_markup=kb.inline_kb_meme_quality,
                                          parse_mode=ParseMode.MARKDOWN)
-                content_id = message.message.animation.file_id
-
-            await bot.delete_message(chat_id=message.message.chat.id,
-                                     message_id=message.message.message_id)
+                content_id = message_path_to_obj.animation.file_id
             await bot.send_message(message.from_user.id,
-                                   f'Mem stolen successfully 🐸\n type: {message.message.content_type} \n content_id: {content_id}')
+                                   f'Mem stolen successfully 🐸\n type: {message_path_to_obj.content_type}\ncontent_id: {content_id}')
+        except MessageToDeleteNotFound as exc:
+            logging.error('Error ToDelete Message. You posted this meme', exc_info=True)
+            await bot.send_message(message.from_user.id,
+                                   f'Error ToDelete Message. You posted this meme twice ⚠️🐸⚠️')
+
+        frog_worker.mem_posted()
 
 
 if __name__ == '__main__':
