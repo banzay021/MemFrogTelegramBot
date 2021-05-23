@@ -18,3 +18,7 @@ async def get_mem_to_posting_from_queue():
 
 def mem_posted():
     queue.task_done()
+
+
+def get_queue_size() -> int:
+    return queue.qsize()

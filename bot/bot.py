@@ -6,7 +6,6 @@ from time import sleep
 
 from aiogram import Bot, types
 from aiogram.utils import executor
-from aiogram.utils.emoji import emojize
 from aiogram.utils.markdown import link, text
 from aiogram.dispatcher import Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -28,6 +27,7 @@ from config import REDIS_HOST
 
 from config import CAT_BIG_EYES
 from config import JOIN_LINK
+from config import JOIN_TEXT
 from config import REDIS_PASS
 
 from utils import FrogState
@@ -185,6 +185,12 @@ async def process_callback_mem_quality(callback_query: types.CallbackQuery):
         await bot.send_message(callback_query.from_user.id, text=f'ERROR in posting frequency  {code} ')
 
 
+@dp.message_handler(AclAdminFilter, state=FrogState.SETTINGS_MODE, commands=['🛠_get_frequency'])
+async def process_command_settings_sleep_time(message: types.Message):
+    frequency = await dp.redis.get('frequency')
+    await bot.send_message(message.from_user.id, f'🛠 Current posting frequency: 1 mem per **{frequency.decode("utf-8")}** min', parse_mode=ParseMode.MARKDOWN)
+
+
 @dp.message_handler(AclAdminFilter, state=FrogState.SETTINGS_MODE, commands=['🛠_sleep_time'])
 async def process_command_settings_sleep_time(message: types.Message):
     await bot.send_message(message.from_user.id, '🛠 Please set mem posting sleep time')
@@ -193,7 +199,7 @@ async def process_command_settings_sleep_time(message: types.Message):
 @dp.message_handler(AclAdminFilter, state=FrogState.SETTINGS_MODE, commands=['🛠_mem_test'])
 async def process_command_settings_mem_test():
     await bot.send_photo(chat_id=CHAT_ID, photo=CAT_BIG_EYES,
-                         caption=text(link(title="@frog", url=JOIN_LINK)),
+                         caption=text(link(title=JOIN_TEXT, url=JOIN_LINK)),
                          reply_markup=kb.inline_kb_meme_quality,
                          parse_mode=ParseMode.MARKDOWN)
 
@@ -242,6 +248,13 @@ async def process_setstate_command(message: types.Message):
 
     await state.set_state(FrogState.all()[1])
     await message.reply(MESSAGES['state_change'], reply=False, reply_markup=kb.kb_add_mems)
+
+
+@dp.message_handler(AclAdminFilter, state=FrogState.MEM_ADD_MODE, commands=['📤_get_queue_size'])
+async def get_queue_size(message: types.Message):
+    queue_size = frog_worker.get_queue_size()
+    await bot.send_message(message.from_user.id,
+                           f'📤🐸 Current queue size: {queue_size}')
 
 
 @dp.callback_query_handler(AclAdminFilter, Regexp('edit.*'), state=FrogState.MEM_ADD_MODE)
@@ -300,7 +313,7 @@ async def steal_with_new_text(message: types.Message):
 async def steal_photo(message: types.Message):
 
     await bot.send_photo(message.from_user.id, photo=message.photo[0].file_id,
-                         caption=text(link(title="@frog", url=JOIN_LINK)),
+                         caption=text(link(title=JOIN_TEXT, url=JOIN_LINK)),
                          reply_markup=kb.inline_kb_meme_edit,
                          parse_mode=ParseMode.MARKDOWN)
 
@@ -308,7 +321,7 @@ async def steal_photo(message: types.Message):
 @dp.message_handler(AclAdminFilter, state=FrogState.MEM_ADD_MODE, content_types=['video'])
 async def steal_video(message: types.Message):
     await bot.send_video(message.from_user.id, video=message.video.file_id,
-                         caption=text(link(title="@frog", url=JOIN_LINK)),
+                         caption=text(link(title=JOIN_TEXT, url=JOIN_LINK)),
                          reply_markup=kb.inline_kb_meme_edit,
                          parse_mode=ParseMode.MARKDOWN)
 
@@ -317,7 +330,7 @@ async def steal_video(message: types.Message):
 async def steal_animation(message: types.Message):
 
     await bot.send_animation(message.from_user.id, animation=message.animation.file_id,
-                             caption=text(link(title="@frog", url=JOIN_LINK)),
+                             caption=text(link(title=JOIN_TEXT, url=JOIN_LINK)),
                              reply_markup=kb.inline_kb_meme_edit,
                              parse_mode=ParseMode.MARKDOWN)
 
@@ -325,6 +338,9 @@ async def steal_animation(message: types.Message):
 @dp.message_handler(AclAdminFilter, state=FrogState.MEM_ADD_MODE, content_types=types.ContentTypes.ANY)
 async def steal_content(message: types.Message):
     await bot.send_message(message.from_user.id, f"I do not know how to steal this yet 🐸 \n Please contact with toad BO$$ content_type: {message.content_type}")
+
+
+
 
 #####################
 #    default answer #
