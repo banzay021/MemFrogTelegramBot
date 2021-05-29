@@ -3,7 +3,7 @@ import typing
 from aiogram import types
 from aiogram.dispatcher.filters import BoundFilter
 
-from config import ACL
+from core.config import ACL
 
 
 class AclAdminFilter(BoundFilter):

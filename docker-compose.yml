@@ -5,7 +5,7 @@ services:
       context: bot/.
     image: mem_frog_bot:0.9
     volumes:
-      - ./bot/config.py:/app/config.py
+      - ./bot/.env:/app/.env
   redis:
     container_name: redis
     image: redis:6.0-alpine3.12

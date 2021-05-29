@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 
 import asyncio
 import signal
@@ -8,27 +8,15 @@ from aiogram import Bot, types
 from aiogram.utils import executor
 from aiogram.utils.markdown import link, text
 from aiogram.dispatcher import Dispatcher
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
-from aiogram.types import ParseMode, InputMediaPhoto, InputMediaVideo, ChatActions, InputMediaAnimation
+from aiogram.types import ParseMode, InputMediaPhoto, InputMediaVideo, ChatActions, InputMediaAnimation, input_media
 from aiogram.dispatcher.filters import IsReplyFilter, RegexpCommandsFilter, Regexp
 from aiogram.utils.exceptions import MessageToDeleteNotFound
 from MyFIlter import AclAdminFilter
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
 
-
-from config import TOKEN
-from config import CHAT_ID
-from config import REDIS_HOST
-
-# from config import TOKEN_TEST as TOKEN
-# from config import CHAT_ID_TEST as CHAT_ID
-# from config import REDIS_HOST_TEST as REDIS_HOST
-
-from config import CAT_BIG_EYES
-from config import JOIN_LINK
-from config import JOIN_TEXT
-from config import REDIS_PASS
+from core.config import DEBUG, TOKEN, CHAT_ID, JOIN_LINK, JOIN_TEXT
+from core.config import REDIS_HOST, REDIS_PASS, REDIS_DB_FOR_BOT_DATA, REDIS_DB_FOR_BOT_STATE
 
 from utils import FrogState
 from messages import MESSAGES
@@ -37,13 +25,9 @@ import keyboards as kb
 
 import re
 import aioredis
-import json
 
 import FrogWorker as frog_worker
 
-
-logging.basicConfig(format=u'%(filename)+13s [ LINE:%(lineno)-4s] %(levelname)-8s [%(asctime)s] %(message)s',
-                        level=logging.DEBUG)
 
 ##############################
 #          BOT INIT          #
@@ -52,7 +36,7 @@ logging.basicConfig(format=u'%(filename)+13s [ LINE:%(lineno)-4s] %(levelname)-8
 like_dict = {'bad': 0, 'normal': 1, 'fun': 2, 'lol': 3}
 
 bot = Bot(token=TOKEN)
-storage = RedisStorage2(REDIS_HOST, 6379, db=1, password=REDIS_PASS)
+storage = RedisStorage2(REDIS_HOST, 6379, db=REDIS_DB_FOR_BOT_STATE, password=REDIS_PASS)
 loop = frog_worker.loop
 
 dp = Dispatcher(bot, storage=storage, loop=loop)
@@ -112,7 +96,7 @@ async def like_count(code: str, message: types.message,reaction_history=None):
 @dp.callback_query_handler(Regexp('quality.*'), state='*')
 async def process_callback_mem_quality(callback_query: types.CallbackQuery):
     code = callback_query.data[8:]
-    redis = await aioredis.create_redis_pool('redis://' + REDIS_HOST, password=REDIS_PASS, db=0)
+    redis = await aioredis.create_redis_pool('redis://' + REDIS_HOST, password=REDIS_PASS, db=REDIS_DB_FOR_BOT_DATA)
     #
 
     # to redis counting
@@ -197,11 +181,11 @@ async def process_command_settings_sleep_time(message: types.Message):
 
 
 @dp.message_handler(AclAdminFilter, state=FrogState.SETTINGS_MODE, commands=['🛠_mem_test'])
-async def process_command_settings_mem_test():
-    await bot.send_photo(chat_id=CHAT_ID, photo=CAT_BIG_EYES,
-                         caption=text(link(title=JOIN_TEXT, url=JOIN_LINK)),
-                         reply_markup=kb.inline_kb_meme_quality,
-                         parse_mode=ParseMode.MARKDOWN)
+async def process_command_settings_mem_test(message: types.Message):
+    logger.debug(f"User {message.from_user.id} : {message.from_user.username} sent test message to chat: {CHAT_ID}")
+    await bot.send_message(chat_id=CHAT_ID,
+                           text='🛠 TEST MESSAGE 🛠',
+                           parse_mode=ParseMode.MARKDOWN)
 
 
 @dp.message_handler(AclAdminFilter, state='*', commands=['🏘_home'])
@@ -353,19 +337,19 @@ async def echo_message(msg: types.Message):
 
 
 async def on_startup(dispatcher: Dispatcher):
-    dispatcher.redis = await aioredis.create_redis_pool('redis://' + REDIS_HOST, password=REDIS_PASS, db=0)
+    dispatcher.redis = await aioredis.create_redis_pool('redis://' + REDIS_HOST, password=REDIS_PASS, db=REDIS_DB_FOR_BOT_DATA)
     print("starting")
 
 
 async def shutdown(loop, signal=None):
     if signal:
-        logging.info(f"Received exit signal {signal.name}")
+        logger.info(f"Received exit signal {signal.name}")
     tasks = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
     [task.cancel() for task in tasks]
-    logging.info(f"Cancelling {len(tasks)} tasks")
+    logger.info(f"Cancelling {len(tasks)} tasks")
     await asyncio.gather(*tasks, return_exceptions=True)
-    logging.info(f"Closing database session")
-    logging.info("Done.")
+    logger.info(f"Closing database session")
+    logger.info("Done.")
     loop.stop()
 
 
@@ -379,7 +363,7 @@ async def shutdown_bot(dispatcher: Dispatcher):
 async def posting():
     while True:
         content_id = ''
-        redis = await aioredis.create_redis_pool('redis://' + REDIS_HOST, password=REDIS_PASS, db=0)
+        redis = await aioredis.create_redis_pool('redis://' + REDIS_HOST, password=REDIS_PASS, db=REDIS_DB_FOR_BOT_DATA)
         # for first mem to post without sleep
         frequency = 0
         if await redis.get('frequency'):
@@ -417,7 +401,7 @@ async def posting():
             await bot.send_message(message.from_user.id,
                                    f'Mem stolen successfully 🐸\n type: {message_path_to_obj.content_type}\ncontent_id: {content_id}')
         except MessageToDeleteNotFound as exc:
-            logging.error('Error ToDelete Message. You posted this meme', exc_info=True)
+            logger.error('Error ToDelete Message. You posted this meme', exc_info=True)
             await bot.send_message(message.from_user.id,
                                    f'Error ToDelete Message. You posted this meme twice ⚠️🐸⚠️')
 
@@ -434,5 +418,5 @@ if __name__ == '__main__':
         executor.start_polling(dp, on_startup=on_startup, on_shutdown=shutdown_bot)
 
     finally:
-        logging.info("Successfully shutdown Bot")
+        logger.info("Successfully shutdown Bot")
         loop.close()
